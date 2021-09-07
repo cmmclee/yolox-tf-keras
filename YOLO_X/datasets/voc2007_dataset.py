@@ -61,6 +61,7 @@ class VOCDataset():
 
 
 if __name__ == "__main__":
+
     # 划分训练集、验证集
     np.random.seed(10101)
     list_samples = np.random.permutation(range(9963))
@@ -69,16 +70,12 @@ if __name__ == "__main__":
     num_train = 9963 - num_val
     train_idx_list = list_samples[0:num_train]
     val_idx_list = list_samples[num_train:]
-    Dataset = VOCDataset(input_size=(640, 640,),
-                         index_list=val_idx_list,
-                         batch_size=2, epochs=300,
-                         num_samples=9963,
+
+    Dataset = VOCDataset(input_size=(640, 640), index_list=val_idx_list,
+                         batch_size=2, epochs=300, num_samples=9963,
                          preproc=TrainTransform(rgb_means=(0.485, 0.456, 0.406),
-                                                std=(0.229, 0.224, 0.225),
-                                                ),
-                         enable_mosiac=False,
-                         detect=False
-                         )
+                                                std=(0.229, 0.224, 0.225)),
+                         enable_mosiac=False)
     dataset = Dataset.get_dataset()
     print(len(dataset))
     for item in dataset:

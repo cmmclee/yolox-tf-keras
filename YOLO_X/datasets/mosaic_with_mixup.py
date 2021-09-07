@@ -3,9 +3,10 @@ import bisect
 import cv2
 import numpy as np
 import os
-from datasets.data_augment import box_candidates, random_perspective,TrainTransform
+from datasets.data_augment import box_candidates, random_perspective, TrainTransform
 from datasets.voc_classes import VOC_CLASSES
 import xml.etree.ElementTree as ET
+
 
 def adjust_box_anns(bbox, scale_ratio, padw, padh, w_max, h_max):
     bbox[:, 0::2] = np.clip(bbox[:, 0::2] * scale_ratio + padw, 0, w_max)
@@ -27,7 +28,7 @@ def xyxy2cxcywh(bboxes):
     return bboxes
 
 
-def get_mosaic_coordinate( mosaic_index, xc, yc, w, h, input_h, input_w):
+def get_mosaic_coordinate(mosaic_index, xc, yc, w, h, input_h, input_w):
     # TODO update doc
     # index0 to top left part of image
     if mosaic_index == 0:
@@ -47,8 +48,8 @@ def get_mosaic_coordinate( mosaic_index, xc, yc, w, h, input_h, input_w):
         small_coord = 0, 0, min(w, x2 - x1), min(y2 - y1, h)
     return (x1, y1, x2, y2), small_coord
 
-class AnnotationTransform(object):
 
+class AnnotationTransform(object):
     """Transforms a VOC annotation into a Tensor of bbox coords and label index
     Initilized with a dictionary lookup of classnames to indexes
 
@@ -100,9 +101,9 @@ class MosaicDetection():
     """Detection dataset wrapper that performs mixup for normal dataset."""
 
     def __init__(
-        self, input_size,num_samples,preproc, enable_mosaic=True,target_transform=AnnotationTransform(),
-        degrees=10.0, translate=0.1, scale=(0.5, 1.5), mscale=(0.5, 1.5),
-        shear=2.0, perspective=0.0, enable_mixup=True, *args
+            self, input_size, num_samples, preproc, enable_mosaic=True, target_transform=AnnotationTransform(),
+            degrees=10.0, translate=0.1, scale=(0.5, 1.5), mscale=(0.5, 1.5),
+            shear=2.0, perspective=0.0, enable_mixup=True, *args
     ):
         """
 
@@ -121,8 +122,8 @@ class MosaicDetection():
             *args(tuple) : Additional arguments for mixup random sampler.
         """
         super(MosaicDetection).__init__()
-        self.input_size=input_size
-        self.num_samples=num_samples
+        self.input_size = input_size
+        self.num_samples = num_samples
         self.preproc = preproc
         self.degrees = degrees
         self.translate = translate
@@ -156,7 +157,7 @@ class MosaicDetection():
         Return:
             img, target
         """
-        index=str(index).zfill(6)
+        index = str(index).zfill(6)
         img = cv2.imread(self._imgpath % index, cv2.IMREAD_COLOR)
         height, width, _ = img.shape
 
@@ -166,8 +167,7 @@ class MosaicDetection():
 
         return img, target, img_info, index
 
-
-    def __call__(self,idx,):
+    def __call__(self, idx, ):
         if self.enable_mosaic:
             mosaic_labels = []
             input_h, input_w = self.input_size[0], self.input_size[1]
@@ -229,26 +229,26 @@ class MosaicDetection():
             # CopyPaste: https://arxiv.org/abs/2012.07177
             # -----------------------------------------------------------------
             if self.enable_mixup and not len(mosaic_labels) == 0:
-                mosaic_img, mosaic_labels = self.mixup(idx,mosaic_img, mosaic_labels,self.input_size)
-            mix_img, padded_labels = self.preproc(mosaic_img, mosaic_labels,self.input_size)
+                mosaic_img, mosaic_labels = self.mixup(idx, mosaic_img, mosaic_labels, self.input_size)
+            mix_img, padded_labels = self.preproc(mosaic_img, mosaic_labels, self.input_size)
             img_info = (mix_img.shape[0], mix_img.shape[1])
 
             return mix_img, padded_labels, img_info, int(idx)
 
         else:
             img, label, img_info, idx = self.pull_item(idx)
-            img, label = self.preproc(img, label,self.input_size)
+            img, label = self.preproc(img, label, self.input_size)
 
             return img, label, img_info, int(idx)
 
-    def mixup(self,idx,origin_img, origin_labels, input_dim):
+    def mixup(self, idx, origin_img, origin_labels, input_dim):
         jit_factor = random.uniform(*self.mixup_scale)
         FLIP = random.uniform(0, 1) > 0.5
         cp_labels = []
         while len(cp_labels) == 0:
             cp_index = random.randint(1, int(self.num_samples))
-            cp_labels =self.load_anno(cp_index)
-        img, cp_labels, _, _ =self.pull_item(idx)
+            cp_labels = self.load_anno(cp_index)
+        img, cp_labels, _, _ = self.pull_item(idx)
 
         if len(img.shape) == 3:
             cp_img = np.ones((input_dim[0], input_dim[1], 3)) * 114.0
@@ -261,7 +261,7 @@ class MosaicDetection():
             interpolation=cv2.INTER_LINEAR,
         ).astype(np.float32)
         cp_img[
-            : int(img.shape[0] * cp_scale_ratio), : int(img.shape[1] * cp_scale_ratio)
+        : int(img.shape[0] * cp_scale_ratio), : int(img.shape[1] * cp_scale_ratio)
         ] = resized_img
         cp_img = cv2.resize(
             cp_img,
@@ -284,15 +284,15 @@ class MosaicDetection():
         if padded_img.shape[1] > target_w:
             x_offset = random.randint(0, padded_img.shape[1] - target_w - 1)
         padded_cropped_img = padded_img[
-            y_offset: y_offset + target_h, x_offset: x_offset + target_w
-        ]
+                             y_offset: y_offset + target_h, x_offset: x_offset + target_w
+                             ]
 
         cp_bboxes_origin_np = adjust_box_anns(
             cp_labels[:, :4], cp_scale_ratio, 0, 0, origin_w, origin_h
         )
         if FLIP:
             cp_bboxes_origin_np[:, 0::2] = (
-                origin_w - cp_bboxes_origin_np[:, 0::2][:, ::-1]
+                    origin_w - cp_bboxes_origin_np[:, 0::2][:, ::-1]
             )
         cp_bboxes_transformed_np = cp_bboxes_origin_np.copy()
         cp_bboxes_transformed_np[:, 0::2] = np.clip(
@@ -314,13 +314,12 @@ class MosaicDetection():
         return origin_img.astype(np.uint8), origin_labels
 
 
-if __name__=="__main__":
-    # mosaic=MosaicDetection(input_size=(640,640),num_samples=9963, preproc=TrainTransform(),enable_mixup=False,enable_mosaic=False)
-    # img,label,img_info,idx=mosaic(idx=53)
-    # img=img*256
-    # im=np.array(img,np.uint8)
-    # im=cv2.imshow("idx",im)
-    # cv2.waitKey(0)
-    # print(img,label,img_info,idx)
-    dataset_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-    print(dataset_dir)
+if __name__ == "__main__":
+    mosaic = MosaicDetection(input_size=(640, 640), num_samples=9963, preproc=TrainTransform(),
+                             enable_mixup=False, enable_mosaic=False)
+    img, label, img_info, idx = mosaic(idx=53)
+    img = img * 256
+    im = np.array(img, np.uint8)
+    im = cv2.imshow("idx", im)
+    cv2.waitKey(0)
+    print(img, label, img_info, idx)

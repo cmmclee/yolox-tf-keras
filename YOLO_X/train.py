@@ -49,7 +49,7 @@ class Trainer:
         self.val_split = 0.1
 
         # --------------  training config --------------------- #
-        self.batch_size = 4
+        self.batch_size = 16
         self.warmup_epochs = 5
         self.total_epoch = 100
         self.warmup_lr = 0.0001
