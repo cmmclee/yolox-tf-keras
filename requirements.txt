@@ -1,0 +1,10 @@
+# tensorflow-gpu==2.1.0
+# tensorflow==2.1.0
+numpy
+opencv-python
+PyYAML
+tqdm
+Pillow
+Cython
+ipython
+h5py==2.10.0

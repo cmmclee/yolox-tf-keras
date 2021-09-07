@@ -65,35 +65,12 @@ class Trainer:
         self.yolo_loss = YOLOXLoss(self.num_classes)
 
     def data_generate(self, file_path, trainging=True):
-        idx_list = []
-        with open(file_path, "r")as train_file:
-            for x in train_file.readlines():
-                idx_list.append(int(x.strip()))
-        if trainging:
-            Dataset = VOCDataset(input_size=self.input_size,
-                                 index_list=idx_list,
-                                 batch_size=self.batch_size,
-                                 epochs=1,
-                                 num_samples=self.num_samples,
-                                 preproc=TrainTransform(rgb_means=(0.485, 0.456, 0.406),
-                                                        std=(0.229, 0.224, 0.225),
-                                                        max_labels=50, ),
-                                 enable_mosiac=self.enale_aug,
-                                 enable_mixup=False
-                                 )
-        else:
-            Dataset = VOCDataset(input_size=self.input_size,
-                                 index_list=idx_list,
-                                 batch_size=self.batch_size,
-                                 epochs=1,
-                                 num_samples=self.num_samples,
-                                 preproc=TrainTransform(rgb_means=(0.485, 0.456, 0.406),
-                                                        std=(0.229, 0.224, 0.225),
-                                                        ),
-                                 enable_mosiac=False,
-                                 enable_mixup=False
-                                 )
-
+        idx_list = self.get_idx_list(file_path)
+        Dataset = VOCDataset(input_size=self.input_size, index_list=idx_list,
+                             batch_size=self.batch_size, epochs=1, num_samples=self.num_samples,
+                             preproc=TrainTransform(rgb_means=(0.485, 0.456, 0.406),
+                                                    std=(0.229, 0.224, 0.225)),
+                             enable_mixup=False, enable_mosiac=(trainging and self.enale_aug))
         dataset = Dataset.get_dataset()
         return dataset
 
@@ -105,8 +82,6 @@ class Trainer:
         return list
 
     def train(self):
-        # model=YOLOv4(self.num_classes)
-
         self.model = YOLOX(num_classes=self.num_classes, backbone=self.backbone, head=self.head)
         writer = tf.summary.create_file_writer(self.log_dir)
         warmup_steps = int(self.warmup_epochs * self.num_samples / self.batch_size)
@@ -132,11 +107,12 @@ class Trainer:
                                           min_learn_rate=self.min_lr_ratio)
             optimizer.lr.assign(lr)
 
-            # warmup和最后15epochs，关闭mosiac,mixup
+            # warmup和最后15epochs，关闭mosiac, mixup
             if epoch > self.warmup_epochs and epoch <= (self.total_epoch - self.no_aug_epochs):
                 self.enale_aug = True
             start_time = time.time()
 
+            # training
             for step, (image_data_train, label_train) in enumerate(self.data_generate(self.train_idx_path)):
                 with tf.GradientTape() as tape:
                     y_pred_train = self.model(image_data_train)
@@ -148,12 +124,9 @@ class Trainer:
                 # Update training metric.
                 loss_metric_train.update_state(loss)
 
-                # Log every 200 batches.
+                # Log every 100 batches.
                 if step % 100 == 0:
-                    print(
-                        "Training loss at step %d: %.4f"
-                        % (step, float(loss))
-                    )
+                    print("Training loss at step %d: %.4f" % (step, float(loss)))
 
                 with writer.as_default():
                     tf.summary.scalar("lr", optimizer.lr, step=global_steps)
@@ -161,18 +134,19 @@ class Trainer:
                 writer.flush()
             print("Training loss over epoch: %.4f" % (float(loss_metric_train.result())))
 
+            # validation
             for step, (image_data_val, label_val) in enumerate(self.data_generate(self.val_idx_path, trainging=False)):
                 global_steps += 1
                 y_pred_val = self.model(image_data_val)
                 loss_val = self.yolo_loss(label_val, y_pred_val)
                 loss_metric_val.update_state(loss_val)
-
             print("Val loss over epoch: %.4f" % (float(loss_metric_val.result())))
             print("Time taken: %.2fs" % (time.time() - start_time))
 
-            self.model.save_weights(self.log_dir + 'yolox_m.h5')
+            self.model.save_weights(self.log_dir + 'yolox_s.h5')
 
-        self.model.save_weights(self.log_dir + 'yolox_m.h5')
+        # training done.
+        self.model.save_weights(self.log_dir + 'yolox_s.h5')
 
 
 if __name__ == "__main__":
