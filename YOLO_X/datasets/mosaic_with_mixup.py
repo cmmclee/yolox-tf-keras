@@ -132,8 +132,9 @@ class MosaicDetection():
         self.mixup_scale = mscale
         self.enable_mosaic = enable_mosaic
         self.enable_mixup = enable_mixup
-        self._imgpath = os.path.join("C:/Users/xiongdada/PycharmProjects/TF_DL/YOLO_X/VOC2007", "JPEGImages", "%s.jpg")
-        self._annopath = os.path.join("C:/Users/xiongdada/PycharmProjects/TF_DL/YOLO_X/VOC2007", "Annotations", "%s.xml")
+        dataset_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+        self._imgpath = os.path.join(dataset_dir, "VOC2007/JPEGImages", "%s.jpg")
+        self._annopath = os.path.join(dataset_dir, "VOC2007/Annotations", "%s.xml")
         self.target_transform = target_transform
 
     def load_anno(self, index):
@@ -314,10 +315,12 @@ class MosaicDetection():
 
 
 if __name__=="__main__":
-    mosaic=MosaicDetection(input_size=(640,640),num_samples=9963, preproc=TrainTransform(),enable_mixup=False,enable_mosaic=False)
-    img,label,img_info,idx=mosaic(idx=53)
-    img=img*256
-    im=np.array(img,np.uint8)
-    im=cv2.imshow("idx",im)
-    cv2.waitKey(0)
-    print(img,label,img_info,idx)
+    # mosaic=MosaicDetection(input_size=(640,640),num_samples=9963, preproc=TrainTransform(),enable_mixup=False,enable_mosaic=False)
+    # img,label,img_info,idx=mosaic(idx=53)
+    # img=img*256
+    # im=np.array(img,np.uint8)
+    # im=cv2.imshow("idx",im)
+    # cv2.waitKey(0)
+    # print(img,label,img_info,idx)
+    dataset_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    print(dataset_dir)

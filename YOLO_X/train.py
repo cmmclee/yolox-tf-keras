@@ -13,15 +13,13 @@ from tensorflow.keras.optimizers import SGD
 import numpy as np
 from model.yolo_loss import YOLOXLoss
 from utils.cosine_decay_lr import cosine_decay_with_warmup
-from tensorflow.keras.callbacks import (EarlyStopping,ReduceLROnPlateau,TensorBoard)
-from datasets.data_augment import TrainTransform,ValTransform
+from tensorflow.keras.callbacks import (EarlyStopping, ReduceLROnPlateau, TensorBoard)
+from datasets.data_augment import TrainTransform, ValTransform
 from datasets.voc2007_dataset import VOCDataset
 
 
-
-
 class Trainer:
-    def __init__(self,):
+    def __init__(self, ):
         # ---------------- model config ---------------- #
         # voc2007
         self.num_classes = 20
@@ -38,36 +36,35 @@ class Trainer:
         self.depth = 0.33
         self.width = 0.50
 
-
         # ---------------- dataloader config ---------------- #
         # set worker to 4 for shorter dataloader init time
         self.data_num_workers = 4
         self.input_size = (640, 640)
         self.random_size = (14, 26)
         self.ann_path = "VOC2007/Annotations"
-        self.train_idx_path="datasets/data/train.txt"
-        self.val_idx_path="datasets/data/val.txt"
-        self.log_dir="log/01train"
-        self.num_samples=9963
-        self.val_split=0.1
+        self.train_idx_path = "datasets/data/train.txt"
+        self.val_idx_path = "datasets/data/val.txt"
+        self.log_dir = "log/train"
+        self.num_samples = 9963
+        self.val_split = 0.1
 
         # --------------  training config --------------------- #
-        self.batch_size=4
+        self.batch_size = 4
         self.warmup_epochs = 5
         self.total_epoch = 100
         self.warmup_lr = 0.0001
-        self.basic_lr_per_img =0.005
+        self.basic_lr_per_img = 0.005
         self.no_aug_epochs = 15
-        self.enale_aug=False
+        self.enale_aug = False
         self.min_lr_ratio = 1e-4
         self.momentum = 0.9
 
         # -----------------  model init ------------------ #
-        self.backbone=YOLOPAFPN(depth=self.depth,width=self.width)
-        self.head=YOLOXHead(num_classes=self.num_classes,width=self.width)
-        self.yolo_loss=YOLOXLoss(self.num_classes)
+        self.backbone = YOLOPAFPN(depth=self.depth, width=self.width)
+        self.head = YOLOXHead(num_classes=self.num_classes, width=self.width)
+        self.yolo_loss = YOLOXLoss(self.num_classes)
 
-    def data_generate(self,file_path,trainging=True):
+    def data_generate(self, file_path, trainging=True):
         idx_list = []
         with open(file_path, "r")as train_file:
             for x in train_file.readlines():
@@ -83,25 +80,25 @@ class Trainer:
                                                         max_labels=50, ),
                                  enable_mosiac=self.enale_aug,
                                  enable_mixup=False
-                             )
+                                 )
         else:
-            Dataset=VOCDataset(input_size=self.input_size,
+            Dataset = VOCDataset(input_size=self.input_size,
                                  index_list=idx_list,
                                  batch_size=self.batch_size,
                                  epochs=1,
                                  num_samples=self.num_samples,
                                  preproc=TrainTransform(rgb_means=(0.485, 0.456, 0.406),
                                                         std=(0.229, 0.224, 0.225),
-                                                     ),
-                               enable_mosiac=False,
-                               enable_mixup=False
-                             )
-
+                                                        ),
+                                 enable_mosiac=False,
+                                 enable_mixup=False
+                                 )
 
         dataset = Dataset.get_dataset()
         return dataset
-    def get_idx_list(self,file_path):
-        list=[]
+
+    def get_idx_list(self, file_path):
+        list = []
         with open(file_path, "r")as train_file:
             for x in train_file.readlines():
                 list.append(int(x.strip()))
@@ -110,18 +107,18 @@ class Trainer:
     def train(self):
         # model=YOLOv4(self.num_classes)
 
-        self.model=YOLOX(num_classes=self.num_classes,backbone=self.backbone,head=self.head)
+        self.model = YOLOX(num_classes=self.num_classes, backbone=self.backbone, head=self.head)
         writer = tf.summary.create_file_writer(self.log_dir)
         warmup_steps = int(self.warmup_epochs * self.num_samples / self.batch_size)
         total_steps = int(self.total_epoch * self.num_samples / self.batch_size)
 
-        global_steps=0
-        optimizer = SGD(momentum=self.momentum,nesterov=True,)
-        loss_metric_train=tf.keras.metrics.Mean()
-        loss_metric_val=tf.keras.metrics.Mean()
+        global_steps = 0
+        optimizer = SGD(momentum=self.momentum, nesterov=True, )
+        loss_metric_train = tf.keras.metrics.Mean()
+        loss_metric_val = tf.keras.metrics.Mean()
         for epoch in range(self.total_epoch):
-            loss_metric_train.reset_state()
-            loss_metric_val.reset_state()
+            loss_metric_train.reset_states()
+            loss_metric_val.reset_states()
             print("\nStart of epoch %d" % (epoch,))
 
             # 余弦退火lr
@@ -136,28 +133,27 @@ class Trainer:
             optimizer.lr.assign(lr)
 
             # warmup和最后15epochs，关闭mosiac,mixup
-            if epoch>self.warmup_epochs and epoch<=(self.total_epoch-self.no_aug_epochs):
-                self.enale_aug=True
+            if epoch > self.warmup_epochs and epoch <= (self.total_epoch - self.no_aug_epochs):
+                self.enale_aug = True
             start_time = time.time()
 
             for step, (image_data_train, label_train) in enumerate(self.data_generate(self.train_idx_path)):
                 with tf.GradientTape() as tape:
-                    y_pred_train=self.model(image_data_train)
-                    loss =self.yolo_loss(label_train,y_pred_train)
+                    y_pred_train = self.model(image_data_train)
+                    loss = self.yolo_loss(label_train, y_pred_train)
 
-                grads=tape.gradient(loss,self.model.trainable_weights)
+                grads = tape.gradient(loss, self.model.trainable_weights)
                 optimizer.apply_gradients(zip(grads, self.model.trainable_weights))
 
                 # Update training metric.
                 loss_metric_train.update_state(loss)
 
                 # Log every 200 batches.
-                if step % 100== 0:
+                if step % 100 == 0:
                     print(
                         "Training loss at step %d: %.4f"
                         % (step, float(loss))
                     )
-
 
                 with writer.as_default():
                     tf.summary.scalar("lr", optimizer.lr, step=global_steps)
@@ -165,10 +161,10 @@ class Trainer:
                 writer.flush()
             print("Training loss over epoch: %.4f" % (float(loss_metric_train.result())))
 
-            for step,(image_data_val,label_val) in enumerate(self.data_generate(self.val_idx_path,trainging=False)):
-                global_steps+=1
-                y_pred_val=self.model(image_data_val)
-                loss_val=self.yolo_loss(label_val,y_pred_val)
+            for step, (image_data_val, label_val) in enumerate(self.data_generate(self.val_idx_path, trainging=False)):
+                global_steps += 1
+                y_pred_val = self.model(image_data_val)
+                loss_val = self.yolo_loss(label_val, y_pred_val)
                 loss_metric_val.update_state(loss_val)
 
             print("Val loss over epoch: %.4f" % (float(loss_metric_val.result())))
@@ -179,7 +175,6 @@ class Trainer:
         self.model.save_weights(self.log_dir + 'yolox_m.h5')
 
 
-
-if __name__=="__main__":
-    yolox_train=Trainer()
+if __name__ == "__main__":
+    yolox_train = Trainer()
     yolox_train.train()
